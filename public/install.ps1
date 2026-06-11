@@ -9,7 +9,8 @@ $Script:DownloadLink   = $env:GV_DOWNLOAD_LINK
 $Script:Culture        = $env:GV_CULTURE
 $Script:PluginName     = "greenvapor"
 $Script:PluginRepo     = "https://github.com/vaporgreen/greenvapor-plugin/releases/latest/download/greenvapor.zip"
-$Script:SteamtoolsUrl     = "https://steam.run"
+$Script:SteamtoolsUrl        = "https://steam.run"
+$Script:SteamtoolsFallbackUrl = "https://raw.githubusercontent.com/vaporgreen/plugins-green/master/public/steamtools"
 $Script:CloudRedirectUrl  = "https://github.com/Selectively11/CloudRedirect/releases/latest/download/CloudRedirectCLI.exe"
 $Script:ProgressPreference = 'SilentlyContinue'
 
@@ -32,14 +33,17 @@ function Get-Strings {
             Title                    = "GreenVapor Installer | discord.gg/greenvapor"
             SteamNotFound            = "Steam not found in registry. Is Steam installed?"
             SteamKilling             = "Stopping Steam..."
-            SteamtoolsFound          = "Steamtools already installed"
-            SteamtoolsNotFound       = "Steamtools not found — installing..."
-            SteamtoolsInstalling     = "Installing Steamtools..."
-            SteamtoolsInstalled      = "Steamtools installed"
-            SteamtoolsRetrying       = "Steamtools install failed, retrying..."
-            SteamtoolsFailed         = "Steamtools installation failed after 5 attempts"
-            CloudRedirectApplying    = "Applying Steamtools fix (CloudRedirect)..."
-            CloudRedirectDone        = "Steamtools fix applied"
+            SteamtoolsFound          = "ST already installed"
+            SteamtoolsNotFound       = "ST not found — installing..."
+            SteamtoolsInstalling     = "Installing ST..."
+            SteamtoolsInstalled      = "ST installed"
+            SteamtoolsRetrying       = "ST install failed, retrying..."
+            SteamtoolsFailed         = "ST failed after 5 attempts — trying fallback..."
+            SteamtoolsFallback       = "Downloading ST from GreenVapor repo..."
+            SteamtoolsFallbackOk     = "ST installed via fallback"
+            SteamtoolsFallbackFailed = "Fallback failed — install ST manually later"
+            CloudRedirectApplying    = "Applying ST fix (CloudRedirect)..."
+            CloudRedirectDone        = "ST fix applied"
             CloudRedirectFailed      = "CloudRedirect failed (skipping)"
             MillenniumInstalling     = "Installing Millennium..."
             MillenniumInstalled      = "Millennium installed"
@@ -62,14 +66,17 @@ function Get-Strings {
             Title                    = "Instalador GreenVapor | discord.gg/greenvapor"
             SteamNotFound            = "Steam nao encontrada no registro. Esta instalada?"
             SteamKilling             = "Encerrando o Steam..."
-            SteamtoolsFound          = "Steamtools ja instalado"
-            SteamtoolsNotFound       = "Steamtools nao encontrado — instalando..."
-            SteamtoolsInstalling     = "Instalando Steamtools..."
-            SteamtoolsInstalled      = "Steamtools instalado"
-            SteamtoolsRetrying       = "Falha ao instalar Steamtools, tentando de novo..."
-            SteamtoolsFailed         = "Steamtools falhou apos 5 tentativas — instale manualmente depois"
-            CloudRedirectApplying    = "Aplicando correção do Steamtools (CloudRedirect)..."
-            CloudRedirectDone        = "Correção do Steamtools aplicada"
+            SteamtoolsFound          = "ST ja instalado"
+            SteamtoolsNotFound       = "ST nao encontrado — instalando..."
+            SteamtoolsInstalling     = "Instalando ST..."
+            SteamtoolsInstalled      = "ST instalado"
+            SteamtoolsRetrying       = "Falha ao instalar ST, tentando de novo..."
+            SteamtoolsFailed         = "ST falhou apos 5 tentativas — tentando fallback..."
+            SteamtoolsFallback       = "Baixando ST do repositorio GreenVapor..."
+            SteamtoolsFallbackOk     = "ST instalado via fallback"
+            SteamtoolsFallbackFailed = "Fallback falhou — instale o ST manualmente depois"
+            CloudRedirectApplying    = "Aplicando correcao do ST (CloudRedirect)..."
+            CloudRedirectDone        = "Correcao do ST aplicada"
             CloudRedirectFailed      = "CloudRedirect falhou (ignorando)"
             MillenniumInstalling     = "Instalando o Millennium..."
             MillenniumInstalled      = "Millennium instalado"
@@ -225,6 +232,18 @@ function Install-Steamtools {
     throw $L.SteamtoolsFailed
 }
 
+function Install-Steamtools-Fallback {
+    param([string]$SteamPath)
+    Write-Log WARN $L.SteamtoolsFallback
+    $files = @("dwmapi.dll", "xinput1_4.dll")
+    foreach ($f in $files) {
+        $url  = "$Script:SteamtoolsFallbackUrl/$f"
+        $dest = Join-Path $SteamPath $f
+        Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $dest -TimeoutSec 60 -ErrorAction Stop
+    }
+    Write-Log OK $L.SteamtoolsFallbackOk
+}
+
 function Invoke-CloudRedirect {
     Write-Log INFO $L.CloudRedirectApplying
     $crExe = Join-Path $env:TEMP "CloudRedirectCLI.exe"
@@ -370,6 +389,11 @@ if (Test-Steamtools $steamPath) {
         Install-Steamtools $steamPath
     } catch {
         Write-Log WARN $L.SteamtoolsFailed
+        try {
+            Install-Steamtools-Fallback $steamPath
+        } catch {
+            Write-Log WARN $L.SteamtoolsFallbackFailed
+        }
     }
 }
 
