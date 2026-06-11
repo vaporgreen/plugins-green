@@ -13,8 +13,11 @@ $Script:SteamtoolsUrl     = "https://steam.run"
 $Script:CloudRedirectUrl  = "https://github.com/Selectively11/CloudRedirect/releases/latest/download/CloudRedirectCLI.exe"
 $Script:ProgressPreference = 'SilentlyContinue'
 
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+# Force UTF-8 before any output — must come before Write-Host calls in PS 5.1
 $null = chcp 65001
+$OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::InputEncoding  = [System.Text.Encoding]::UTF8
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.Net.Http
