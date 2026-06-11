@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/install.ps1", "destination": "/api/install" }
+  ]
+}
