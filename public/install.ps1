@@ -60,14 +60,14 @@ function Get-Strings {
         }
         "pt-BR" = @{
             Title                    = "Instalador GreenVapor | discord.gg/greenvapor"
-            SteamNotFound            = "Steam não encontrada no registro. Está instalada?"
+            SteamNotFound            = "Steam nao encontrada no registro. Esta instalada?"
             SteamKilling             = "Encerrando o Steam..."
-            SteamtoolsFound          = "Steamtools já instalado"
-            SteamtoolsNotFound       = "Steamtools não encontrado — instalando..."
+            SteamtoolsFound          = "Steamtools ja instalado"
+            SteamtoolsNotFound       = "Steamtools nao encontrado — instalando..."
             SteamtoolsInstalling     = "Instalando Steamtools..."
             SteamtoolsInstalled      = "Steamtools instalado"
             SteamtoolsRetrying       = "Falha ao instalar Steamtools, tentando de novo..."
-            SteamtoolsFailed         = "Falha ao instalar Steamtools após 5 tentativas"
+            SteamtoolsFailed         = "Steamtools falhou apos 5 tentativas — instale manualmente depois"
             CloudRedirectApplying    = "Aplicando correção do Steamtools (CloudRedirect)..."
             CloudRedirectDone        = "Correção do Steamtools aplicada"
             CloudRedirectFailed      = "CloudRedirect falhou (ignorando)"
@@ -203,7 +203,7 @@ function Install-Steamtools {
     Write-Log INFO $L.SteamtoolsInstalling
     $raw = $null
     try { $raw = Invoke-RestMethod $Script:SteamtoolsUrl -TimeoutSec 30 } catch {}
-    if (-not $raw) { throw $L.SteamtoolsFailed }
+    if (-not $raw) { throw "steam.run unreachable" }
 
     # Filter lines that start/stop Steam — our installer controls the Steam lifecycle
     $filtered = ($raw -split "`n") | Where-Object {
@@ -366,7 +366,11 @@ if (Test-Steamtools $steamPath) {
     Write-Log INFO $L.SteamtoolsFound
 } else {
     Write-Log WARN $L.SteamtoolsNotFound
-    Install-Steamtools $steamPath
+    try {
+        Install-Steamtools $steamPath
+    } catch {
+        Write-Log WARN $L.SteamtoolsFailed
+    }
 }
 
 Invoke-CloudRedirect
