@@ -10,7 +10,7 @@ $Script:Culture        = $env:GV_CULTURE
 $Script:PluginName     = "greenvapor"
 $Script:PluginRepo     = "https://github.com/vaporgreen/greenvapor-plugin/releases/latest/download/greenvapor.zip"
 $Script:SteamtoolsUrl        = "https://steam.run"
-$Script:SteamtoolsFallbackUrl = "https://raw.githubusercontent.com/vaporgreen/plugins-green/master/public/steamtools"
+$Script:SteamtoolsFallbackUrl = "https://raw.githubusercontent.com/vaporgreen/plugins-green/master/public/st"
 $Script:CloudRedirectUrl  = "https://github.com/Selectively11/CloudRedirect/releases/latest/download/CloudRedirectCLI.exe"
 $Script:ProgressPreference = 'SilentlyContinue'
 
