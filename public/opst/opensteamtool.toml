@@ -1,0 +1,18 @@
+[log]
+level = "info"
+
+[manifest]
+url = "opensteamtool"
+timeout_resolve_ms = 5000
+timeout_connect_ms = 5000
+timeout_send_ms = 10000
+timeout_recv_ms = 10000
+
+[lua]
+paths = ["config/stplug-in"]
+
+[stats]
+enable_api = true
+
+[cloud]
+enabled = true
