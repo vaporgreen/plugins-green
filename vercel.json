@@ -2,7 +2,7 @@
   "rewrites": [
     { "source": "/install.ps1", "destination": "/api/install" },
     { "source": "/cloudfix.ps1", "destination": "/api/cloudfix" },
-    { "source": "/install-plugin.ps1", "destination": "/api/install-plugin" },
+    { "source": "/install-legacy.ps1", "destination": "/api/install-legacy" },
     { "source": "/millennium.ps1", "destination": "/api/millennium" },
     { "source": "/spacetheme.ps1", "destination": "/api/spacetheme" }
   ]

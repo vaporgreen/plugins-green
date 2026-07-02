@@ -1,419 +1,710 @@
-# GreenVapor Installer
-# Usage: irm "https://greenvapor.vercel.app/install.ps1" | iex
-#
-# Override via env vars:
-#   $env:GV_DOWNLOAD_LINK  - custom plugin zip URL
-#   $env:GV_CULTURE        - force language (en, pt-BR, es, fr)
-
-$Script:DownloadLink   = $env:GV_DOWNLOAD_LINK
-$Script:Culture        = $env:GV_CULTURE
-$Script:PluginName     = "greenvapor"
-$Script:PluginRepo     = "https://github.com/vaporgreen/greenvapor-plugin/releases/latest/download/greenvapor.zip"
-$Script:SteamtoolsUrl        = "https://steam.run"
-$Script:SteamtoolsFallbackUrl = "https://raw.githubusercontent.com/vaporgreen/plugins-green/master/public/st"
-$Script:CloudRedirectUrl  = "https://github.com/Selectively11/CloudRedirect/releases/latest/download/CloudRedirectCLI.exe"
+# Configuration -- edit these before running, or override via env vars:
+#   $env:LT_DOWNLOAD_LINK, $env:LT_PLUGIN_NAME, $env:LT_BRANCH, $env:LT_CULTURE
+$Script:DownloadLink = $env:LT_DOWNLOAD_LINK
+$Script:PluginName   = $env:LT_PLUGIN_NAME
+$Script:Branch       = if ($env:LT_BRANCH) { [int]$env:LT_BRANCH } else { 1 }
+$Script:Culture      = $env:LT_CULTURE
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 # fix SSL/TSL Error
 $Script:ProgressPreference = 'SilentlyContinue'
-
-# Force UTF-8 before any output — must come before Write-Host calls in PS 5.1
-$null = chcp 65001
-$OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-[Console]::InputEncoding  = [System.Text.Encoding]::UTF8
-
+$null = chcp 65001
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 Add-Type -AssemblyName System.Net.Http
 
 # ---------------------------------------------------------------------------
-# Locale
+# Locale defaults
 # ---------------------------------------------------------------------------
-function Get-Strings {
+function Get-DefaultStrings {
     param([string]$Culture)
+
     $tables = @{
         "en" = @{
-            Title                    = "GreenVapor Installer | discord.gg/greenvapor"
-            SteamNotFound            = "Steam not found in registry. Is Steam installed?"
-            SteamKilling             = "Stopping Steam..."
-            SteamtoolsFound          = "Steamtools already installed"
-            SteamtoolsNotFound       = "Steamtools not found — installing..."
-            SteamtoolsInstalling     = "Installing Steamtools..."
-            SteamtoolsInstalled      = "Steamtools installed"
-            SteamtoolsRetrying       = "Steamtools install failed, retrying..."
-            SteamtoolsFailed         = "Steamtools failed after 5 attempts — trying fallback..."
-            SteamtoolsFallback       = "Downloading Steamtools from GreenVapor repo..."
-            SteamtoolsFallbackOk     = "Steamtools installed via fallback"
-            SteamtoolsFallbackFailed = "Fallback failed — install Steamtools manually later"
-            CloudRedirectApplying    = "Applying Steamtools fix (CloudRedirect)..."
-            CloudRedirectDone        = "Steamtools fix applied"
-            CloudRedirectFailed      = "CloudRedirect failed (skipping)"
-            MillenniumInstalling     = "Installing Millennium..."
-            MillenniumInstalled      = "Millennium installed"
-            MillenniumAlready        = "Millennium already installed"
-            MillenniumFirstBoot      = "Steam may be slower on first boot — let it load."
-            PluginDownloading        = "Downloading GreenVapor..."
-            PluginExtracting         = "Extracting GreenVapor..."
-            PluginInstalled          = "GreenVapor installed!"
-            PluginEnabled            = "GreenVapor enabled"
-            CleaningUp               = "Cleaning up..."
-            StartingSteam            = "Starting Steam..."
-            Done                     = "All done! Enjoy GreenVapor."
-            ErrorTitle               = "GreenVapor Installer — ERROR"
-            ErrorHeader              = "AN ERROR OCCURRED"
-            ErrorBody                = "The installer encountered a problem. This is often caused by your ISP blocking download servers."
-            ErrorFaq                 = "Visit discord.gg/greenvapor for help."
-            ErrorExit                = "Press any key to exit."
+            Title                 = "GreenVapor plugin installer | .gg/greenvapor"
+            SteamRegNotFound      = "Steam registry key not found. Is Steam installed?"
+            SteamKilling          = "Stopping Steam"
+            SteamKilled           = "Steam stopped"
+            SteamtoolsFound       = "Steamtools already installed"
+            SteamtoolsNotFound    = "Steamtools not found"
+            SteamtoolsInstalling  = "Installing Steamtools"
+            SteamtoolsInstalled   = "Steamtools installed"
+            SteamtoolsRetrying    = "Steamtools installation failed, retrying..."
+            SteamtoolsFailed      = "Steamtools installation failed after 5 attempts"
+            MillenniumNotFound    = "Millennium not found"
+            MillenniumCountdown   = "Millennium will be installed in {0} second(s)... Press any key to cancel"
+            MillenniumCancelled   = "Installation cancelled by user"
+            MillenniumInstalling  = "Installing Millennium"
+            MillenniumInstalled   = "Millennium installed"
+            MillenniumAlready     = "Millennium already installed"
+            MillenniumFirstBoot   = "Steam startup may be slower on first boot -- let it sit."
+            PluginUpdating        = "Plugin already installed, updating"
+            PluginDuplicates      = "Multiple conflicting copies found, cleaning up and reinstalling"
+            PluginDownloading     = "Downloading {0}"
+            PluginDownloadFailed  = "Failed to download {0}"
+            PluginExtracting      = "Extracting {0}"
+            PluginExtractFailed   = "Extraction failed, trying built-in Expand-Archive"
+            PluginInstalled       = "{0} installed"
+            PluginEnabled         = "Plugin enabled"
+            RemovingBeta          = "Cleaning up beta flag"
+            RemovingCfg           = "Cleaning up steam.cfg"
+            RemovingFlags         = "Cleaning up ForceX86 flags and offline mode"
+            StartingSteam         = "Starting Steam"
+            UpdateCheckDisabled   = "Millennium auto-updates disabled to prevent startup hangs."
+            UpdateCheckManual     = "Check for Millennium updates manually if you want the latest."
+
+            ErrorTitle            = "GreenVapor installer - ERROR"
+            ErrorHeader           = "AN ERROR OCCURRED"
+            ErrorBody             = "The GreenVapor plugin installer encountered a problem and could not complete. This is often caused by your ISP blocking the download servers we use."
+            ErrorFaq              = "Visit the server (.gg/greenvapor) for more information & fixes."
+            ErrorExit             = "Press any key to exit."
         }
+
         "pt-BR" = @{
-            Title                    = "Instalador GreenVapor | discord.gg/greenvapor"
-            SteamNotFound            = "Steam nao encontrada no registro. Esta instalada?"
-            SteamKilling             = "Encerrando o Steam..."
-            SteamtoolsFound          = "Steamtools ja instalado"
-            SteamtoolsNotFound       = "Steamtools nao encontrado — instalando..."
-            SteamtoolsInstalling     = "Instalando Steamtools..."
-            SteamtoolsInstalled      = "Steamtools instalado"
-            SteamtoolsRetrying       = "Falha ao instalar Steamtools, tentando de novo..."
-            SteamtoolsFailed         = "Steamtools falhou apos 5 tentativas — tentando fallback..."
-            SteamtoolsFallback       = "Baixando Steamtools do repositorio GreenVapor..."
-            SteamtoolsFallbackOk     = "Steamtools instalado via fallback"
-            SteamtoolsFallbackFailed = "Fallback falhou — instale o Steamtools manualmente depois"
-            CloudRedirectApplying    = "Aplicando correcao do Steamtools (CloudRedirect)..."
-            CloudRedirectDone        = "Correcao do Steamtools aplicada"
-            CloudRedirectFailed      = "CloudRedirect falhou (ignorando)"
-            MillenniumInstalling     = "Instalando o Millennium..."
-            MillenniumInstalled      = "Millennium instalado"
-            MillenniumAlready        = "Millennium já está instalado"
-            MillenniumFirstBoot      = "A Steam pode demorar um pouco na primeira inicialização — aguarde."
-            PluginDownloading        = "Baixando GreenVapor..."
-            PluginExtracting         = "Extraindo GreenVapor..."
-            PluginInstalled          = "GreenVapor instalado!"
-            PluginEnabled            = "GreenVapor habilitado"
-            CleaningUp               = "Limpando arquivos temporários..."
-            StartingSteam            = "Abrindo o Steam..."
-            Done                     = "Pronto! Bom uso do GreenVapor."
-            ErrorTitle               = "Instalador GreenVapor — ERRO"
-            ErrorHeader              = "OCORREU UM ERRO"
-            ErrorBody                = "O instalador encontrou um problema. Geralmente causado pela sua internet bloqueando os servidores de download."
-            ErrorFaq                 = "Acesse discord.gg/greenvapor para ajuda."
-            ErrorExit                = "Pressione qualquer tecla para sair."
+            Title                 = "Instalador do GreenVapor | .gg/greenvapor"
+            SteamRegNotFound      = "Steam não encontrada no registro. Sua Steam ta instalada?"
+            SteamKilling          = "Parando a Steam"
+            SteamKilled           = "Steam Encerrada"
+            SteamtoolsFound       = "Steamtools ja instalado"
+            SteamtoolsNotFound    = "Steamtools não encontrado"
+            SteamtoolsInstalling  = "Instalando Steamtools"
+            SteamtoolsInstalled   = "Steamtools instalado"
+            SteamtoolsRetrying    = "Falha ao instalar Steamtools, tentando denovo..."
+            SteamtoolsFailed      = "Falha ao instalar Steamtools após 5 tentativas"
+            MillenniumNotFound    = "Millennium não encontrado"
+            MillenniumCountdown   = "Millennium vai ser instalado em {0} segundo(s)... Aperte qualquer tecla pra cancelar"
+            MillenniumCancelled   = "Instalação cancelada pelo usuário"
+            MillenniumInstalling  = "Instalando Millennium"
+            MillenniumInstalled   = "Millennium instalado"
+            MillenniumAlready     = "O Millennium ja está instalado"
+            MillenniumFirstBoot   = "A Steam pode demorar um pouco pra abrir pela primeira vez -- deixa rolar."
+            PluginUpdating        = "Plugin já instalado, atualizando"
+            PluginDuplicates      = "Várias cópias conflitantes encontradas, limpando e reinstalando"
+            PluginDownloading     = "Baixando {0}"
+            PluginDownloadFailed  = "Falha ao baixar {0}"
+            PluginExtracting      = "Extraindo {0}"
+            PluginExtractFailed   = "Falha ao extrair, tentando via Expand-Archive"
+            PluginInstalled       = "{0} instalado"
+            PluginEnabled         = "Plugin habilitado"
+            RemovingBeta          = "Limpando flag de beta da Steam"
+            RemovingCfg           = "Apagando steam.cfg"
+            RemovingFlags         = "Limpando flags do ForceX86 e o modo offline"
+            StartingSteam         = "Abrindo a Steam"
+            UpdateCheckDisabled   = "Atualizações automáticas do Millennium desabilitadas pra evitar travamentos ao iniciar"
+            UpdateCheckManual     = "Verifique manualmente por atualizações do Millennium caso você queira a ultima versão"
+
+            ErrorTitle            = "Instalador do GreenVapor - ERRO"
+            ErrorHeader           = "OCORREU UM ERRO"
+            ErrorBody             = "O instalador do GreenVapor encontrou um problema e não pôde ser concluído. Isso geralmente é causado pela tua internet bloqueando nossos servidores de Download"
+            ErrorFaq              = "Visite o servidor (.gg/greenvapor) pra mais informações e detalhes em como consertar"
+            ErrorExit             = "Aperte qualquer botão pra sair."
         }
+
         "es" = @{
-            Title                    = "Instalador GreenVapor | discord.gg/greenvapor"
-            SteamNotFound            = "Steam no encontrado en el registro. ¿Está instalado?"
-            SteamKilling             = "Cerrando Steam..."
-            SteamtoolsFound          = "Steamtools ya está instalado"
-            SteamtoolsNotFound       = "Steamtools no encontrado — instalando..."
-            SteamtoolsInstalling     = "Instalando Steamtools..."
-            SteamtoolsInstalled      = "Steamtools instalado"
-            SteamtoolsRetrying       = "Fallo al instalar Steamtools, reintentando..."
-            SteamtoolsFailed         = "Instalación de Steamtools fallida tras 5 intentos"
-            CloudRedirectApplying    = "Aplicando parche de Steamtools (CloudRedirect)..."
-            CloudRedirectDone        = "Parche de Steamtools aplicado"
-            CloudRedirectFailed      = "CloudRedirect falló (omitiendo)"
-            MillenniumInstalling     = "Instalando Millennium..."
-            MillenniumInstalled      = "Millennium instalado"
-            MillenniumAlready        = "Millennium ya estaba instalado"
-            MillenniumFirstBoot      = "Steam puede tardar más en el primer inicio — espera."
-            PluginDownloading        = "Descargando GreenVapor..."
-            PluginExtracting         = "Extrayendo GreenVapor..."
-            PluginInstalled          = "¡GreenVapor instalado!"
-            PluginEnabled            = "GreenVapor habilitado"
-            CleaningUp               = "Limpiando archivos temporales..."
-            StartingSteam            = "Iniciando Steam..."
-            Done                     = "¡Listo! Disfruta GreenVapor."
-            ErrorTitle               = "Instalador GreenVapor — ERROR"
-            ErrorHeader              = "OCURRIÓ UN ERROR"
-            ErrorBody                = "El instalador encontró un problema. Suele ocurrir cuando tu ISP bloquea los servidores de descarga."
-            ErrorFaq                 = "Visita discord.gg/greenvapor para más ayuda."
-            ErrorExit                = "Presiona cualquier tecla para salir."
+            Title                 = "Instalador del plugin de GreenVapor | .gg/greenvapor"
+            SteamRegNotFound      = "La clave de registro de Steam no se ha encontrado. Está Steam instalado?"
+            SteamKilling          = "Deteniendo Steam"
+            SteamKilled           = "Steam se ha detenido"
+            SteamtoolsFound       = "Steamtools ya está instalado"
+            SteamtoolsNotFound    = "Steamtools no se ha encontrado"
+            SteamtoolsInstalling  = "Instalando Steamtools"
+            SteamtoolsInstalled   = "Steamtools se ha instalado"
+            SteamtoolsRetrying    = "La instalación de Steamtools ha fallado, reintentando..."
+            SteamtoolsFailed      = "La instalación de Steamtools ha fallado despues de 5 intentos"
+            MillenniumNotFound    = "Millenium no encontrado"
+            MillenniumCountdown   = "Millenium sera instalado en {0} segundo(s) ... Presiona cualquier tecla para cancelar"
+            MillenniumCancelled   = "Instalación cancelada por el usuario"
+            MillenniumInstalling  = "Instalando Millenium"
+            MillenniumInstalled   = "Millenium instalado"
+            MillenniumAlready     = "Millenium ya estaba instalado"
+            MillenniumFirstBoot   = "La carga de steam puede ser más lenta la primera vez para cargar las dependencias -- espera pacientemente"
+            PluginUpdating        = "El plugin ya esta instalado, actualizando"
+            PluginDuplicates      = "Se encontraron varias copias en conflicto, limpiando y reinstalando"
+            PluginDownloading     = "Descargando {0}"
+            PluginDownloadFailed  = "Error al descargar {0}"
+            PluginExtracting      = "Extrayendo {0}"
+            PluginExtractFailed   = "Extracción fallida, intentando descomprimir archivos"
+            PluginInstalled       = "{0} instalado"
+            PluginEnabled         = "Plugin establecido"
+            RemovingBeta          = "Limpiando indicador beta"
+            RemovingCfg           = "Limpiando steam.cfg"
+            RemovingFlags         = "Limpiando flags de ForceX86 y el modo sin conexión"
+            StartingSteam         = "Iniciando Steam"
+            UpdateCheckDisabled   = "Las auto-actualizaciones de Millenium están deshabilitadas para prevenir cuelgues al inicio"
+            UpdateCheckManual     = "Comprueba las actualizaciones de Millenium manualmente si necesitas la última versión"
+
+            ErrorTitle            = "Error con el instalador GreenVapor - ERROR"
+            ErrorHeader           = "UN ERROR HA OCURRIDO"
+            ErrorBody             = "El instalador del plugin GreenVapor encontró un problema y no pudo completarse. Esto suele ocurrir cuando tu proveedor de internet (ISP) bloquea los servidores de descarga que utilizamos."
+            ErrorFaq              = "Visita el servidor (.gg/greenvapor) para mas información o fixes."
+            ErrorExit             = "Presiona cualquier tecla para salir."
+        }
+
+        "fr" = @{
+            Title                 = "Installateur du plugin GreenVapor | .gg/greenvapor"
+            SteamRegNotFound      = "Clé de registre steam introuvable. Est ce que Steam est installé?"
+            SteamKilling          = "Arrêt de Steam"
+            SteamKilled           = "Steam arreté"
+            SteamtoolsFound       = "Steamtools déjà installé"
+            SteamtoolsNotFound    = "Steamtools introuvable"
+            SteamtoolsInstalling  = "Installation de Steamtools"
+            SteamtoolsInstalled   = "Steamtools installé"
+            SteamtoolsRetrying    = "L'instalation de Steamtools a echoué, nouvelle tentative..."
+            SteamtoolsFailed      = "L'installation de Steamtools a echoué apres 5 tentatives"
+            MillenniumNotFound    = "Millennium introuvable"
+            MillenniumCountdown   = "Millennium sera installé dans {0} seconde(s)... Appuyez sur une touche pour annuler"
+            MillenniumCancelled   = "Installation annuléee par l'utilisateur"
+            MillenniumInstalling  = "Installation de Millennium"
+            MillenniumInstalled   = "Millennium installé"
+            MillenniumAlready     = "Millennium déjà installé"
+            MillenniumFirstBoot   = "Le prochain lancement de Steam sera plus long -- laisser le temps."
+            PluginUpdating        = "Plugin déjà installé, mise à jour"
+            PluginDuplicates      = "Plusieurs copies en conflit trouvées, nettoyage et réinstallation"
+            PluginDownloading     = "Installation {0}"
+            PluginDownloadFailed  = "Echec de l'installation {0}"
+            PluginExtracting      = "Extraction {0}"
+            PluginExtractFailed   = "Extraction echouée, tentative avec la fonction native"
+            PluginInstalled       = "{0} installé"
+            PluginEnabled         = "Plugin activé"
+            RemovingBeta          = "Nettoyage de la beta"
+            RemovingCfg           = "Nettoyage de steam.cfg"
+            RemovingFlags         = "Nettoyage des flags ForceX86 et du mode hors ligne"
+            StartingSteam         = "Lancement de Steam"
+            UpdateCheckDisabled   = "Les mises à jour de Millennium ont été désactivée pour éviter les blocages au demarrage."
+            UpdateCheckManual     = "Vérifiez manuellement les mises à jour de Millennium si vous souhaitez la derniere version."
+
+            ErrorTitle            = "Installateur GreenVapor - ERREUR"
+            ErrorHeader           = "UNE ERREUR EST SURVENUE"
+            ErrorBody             = "L'installation du plugin GreenVapor a rencontré un problème et n'a pas pu se terminer. Ça se produit souvent quand votre fournisseur d'internet (ISP) bloque les serveurs de téléchargement."
+            ErrorFaq              = "Allez voir le serveur (.gg/greenvapor) pour plus d'informations & corrections."
+            ErrorExit             = "Appuyez sur une touche pour quitter."
         }
     }
-    foreach ($key in @($Culture, ($Culture -split '-')[0], "en")) {
-        if ($tables.ContainsKey($key)) { return $tables[$key] }
+
+    foreach ($key in @($Culture, $Culture.Split('-')[0], "en")) {
+        if ($tables.ContainsKey($key)) {
+            return $tables[$key]
+        }
     }
     return $tables["en"]
 }
 
-$DetectedCulture = if ($Script:Culture) { $Script:Culture } else {
-    [System.Globalization.CultureInfo]::CurrentUICulture.Name
-}
-$L = Get-Strings -Culture $DetectedCulture
+# ---------------------------------------------------------------------------
+# Resolve messages based on locale
+# ---------------------------------------------------------------------------
+$DetectedCulture = if ($Script:Culture) { $Script:Culture } else { [System.Globalization.CultureInfo]::CurrentUICulture.Name }
+$L = Get-DefaultStrings -Culture $DetectedCulture
 
 # ---------------------------------------------------------------------------
-# Error trap
+# Global error trap -- catches ANY terminating error and shows error page
+# MUST be placed after $L is populated so error strings are available
 # ---------------------------------------------------------------------------
-$Script:OriginalEA = $ErrorActionPreference
+$Script:OriginalErrorAction = $ErrorActionPreference
 $ErrorActionPreference = "Stop"
 
 trap {
-    $msg = $_.Exception.Message
-    if (-not $L) { $L = Get-Strings -Culture "en" }
+    $errMsg = $_.Exception.Message
+
+    # Ensure $L has something even if the hashtable failed
+    if (-not $L) { $L = Get-DefaultStrings -Culture "en" }
+
+    $host.UI.RawUI.CursorPosition = @{ X=0; Y=0 }
+    $errTitle = if ($L.ContainsKey("ErrorTitle")) { $L["ErrorTitle"] } else { "GreenVapor installer - ERROR" }
+    $host.UI.RawUI.WindowTitle = $errTitle
     Clear-Host
-    $host.UI.RawUI.WindowTitle = $L.ErrorTitle
-    $w = $host.UI.RawUI.WindowSize.Width
-    Write-Host ("=" * $w) -ForegroundColor Red
+
+    $width = $host.UI.RawUI.WindowSize.Width
+
+    Write-Host ("=" * $width) -ForegroundColor Red
     Write-Host ""
-    $pad = [Math]::Max(0, [int](($w - $L.ErrorHeader.Length) / 2))
-    Write-Host (" " * $pad + $L.ErrorHeader) -ForegroundColor Red
+
+    $header = if ($L.ContainsKey("ErrorHeader")) { $L["ErrorHeader"] } else { "AN ERROR OCCURRED" }
+    $pad = [Math]::Max(0, [int](($width - $header.Length) / 2))
+    Write-Host (" " * $pad) -NoNewline
+    Write-Host $header -ForegroundColor Red -BackgroundColor Black
     Write-Host ""
-    Write-Host $L.ErrorBody -ForegroundColor White
+
+    $body = if ($L.ContainsKey("ErrorBody")) { $L["ErrorBody"] } else { "The installer encountered a problem." }
+    Write-Host $body -ForegroundColor White
     Write-Host ""
-    Write-Host ">>> $msg" -ForegroundColor Yellow
+
+    Write-Host ">>> " -NoNewline -ForegroundColor Yellow
+    Write-Host $errMsg -ForegroundColor Gray
     Write-Host ""
-    Write-Host $L.ErrorFaq -ForegroundColor Cyan
+
+    $faq = if ($L.ContainsKey("ErrorFaq")) { $L["ErrorFaq"] } else { "Visit (.gg/greenvapor)" }
+    Write-Host $faq -ForegroundColor Cyan
     Write-Host ""
-    Write-Host ("=" * $w) -ForegroundColor Red
+
+    Write-Host ("=" * $width) -ForegroundColor Red
     Write-Host ""
-    Write-Host $L.ErrorExit -ForegroundColor Yellow
+
+    $exitMsg = if ($L.ContainsKey("ErrorExit")) { $L["ErrorExit"] } else { "Press any key to exit." }
+    Write-Host $exitMsg -ForegroundColor Yellow
     try { $null = [System.Console]::ReadKey($true) } catch {}
-    $ErrorActionPreference = $Script:OriginalEA
+
+    $ErrorActionPreference = $Script:OriginalErrorAction
     break
 }
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Console helpers
 # ---------------------------------------------------------------------------
-$host.UI.RawUI.WindowTitle = $L.Title
+$Host.UI.RawUI.WindowTitle = $L["Title"]
+
+$LogColors = @{
+    "OK"   = "Green"
+    "INFO" = "Cyan"
+    "ERR"  = "Red"
+    "WARN" = "Yellow"
+    "LOG"  = "Magenta"
+    "AUX"  = "DarkGray"
+}
 
 function Write-Log {
     param(
-        [ValidateSet("OK","INFO","WARN","ERR","LOG","AUX")][string]$Type,
-        [string]$Message
+        [ValidateSet("OK","INFO","ERR","WARN","LOG","AUX")]
+        [string]$Type,
+        [string]$Message,
+        [switch]$NoNewline
     )
-    $colors = @{ OK="Green"; INFO="Cyan"; WARN="Yellow"; ERR="Red"; LOG="Magenta"; AUX="DarkGray" }
+    $color = $LogColors[$Type]
     $ts = Get-Date -Format "HH:mm:ss"
-    Write-Host "[$ts] " -ForegroundColor Cyan -NoNewline
-    Write-Host "[$Type] $Message" -ForegroundColor $colors[$Type]
+    if ($NoNewline) {
+        Write-Host "`r[$ts] " -ForegroundColor Cyan -NoNewline
+        Write-Host "[$Type] $Message" -ForegroundColor $color -NoNewline
+    } else {
+        Write-Host "[$ts] " -ForegroundColor Cyan -NoNewline
+        Write-Host "[$Type] $Message" -ForegroundColor $color
+    }
 }
 
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
+$Script:Name      = "greenvapor"
+$Script:Link      = "https://github.com/vaporgreen/greenvapor-plugin/releases/latest/download/greenvapor.zip"
+$MillenniumTimer  = 5
+
+if ($Script:Branch -eq 2) {
+    $Script:Name = "steamtools-collection"
+    $Script:Link = "https://github.com/MalucoPlayGamer/steamtools-collection/releases/latest/download/steamtools-collection.zip"
+}
+if ($Script:DownloadLink) { $Script:Link = $Script:DownloadLink }
+if ($Script:PluginName)   { $Script:Name = $Script:PluginName }
+
+$DisplayName = $Script:Name.Substring(0,1).ToUpper() + $Script:Name.Substring(1).ToLower()
+
+# ---------------------------------------------------------------------------
+# Steam path
+# ---------------------------------------------------------------------------
 function Get-SteamPath {
-    foreach ($reg in @(
+    $registries = @(
         "HKLM:\SOFTWARE\WOW6432Node\Valve\Steam",
         "HKLM:\SOFTWARE\Valve\Steam",
         "HKCU:\SOFTWARE\Valve\Steam"
-    )) {
-        if (-not (Test-Path $reg)) { continue }
-        $p = (Get-ItemProperty $reg -Name InstallPath -ErrorAction SilentlyContinue).InstallPath
-        if ($p -and (Test-Path (Join-Path $p "steam.exe"))) { return $p }
+    )
+
+    foreach ($reg in $registries) {
+        if (!(Test-Path $reg)) { continue }
+
+        $path = (Get-ItemProperty -Path $reg -Name "InstallPath" -ErrorAction SilentlyContinue).InstallPath
+        $potentialExe = Join-Path $path "steam.exe"
+        if ((Test-Path $path) -and (Test-Path $potentialExe)) {
+            return $path
+        }
     }
-    throw $L.SteamNotFound
+    Write-Log -Type ERR -Message $L["SteamRegNotFound"]
 }
 
+# ---------------------------------------------------------------------------
+# Steamtools -- REQUIRED, no user choice
+# ---------------------------------------------------------------------------
 function Test-Steamtools {
     param([string]$SteamPath)
-    foreach ($f in @("dwmapi.dll", "xinput1_4.dll")) {
-        if (Test-Path (Join-Path $SteamPath $f)) { return $true }
+    # Valida se TODAS as DLLs estão presentes na raiz para dar como instalado
+    foreach ($f in @("dwmapi.dll", "OpenSteamTool.dll", "xinput1_4.dll", "cloud_redirect.dll")) {
+        if (-not (Test-Path (Join-Path $SteamPath $f))) { return $false }
     }
-    return $false
+    return $true
 }
 
 function Install-Steamtools {
     param([string]$SteamPath)
-    Write-Log INFO $L.SteamtoolsInstalling
-    $raw = $null
-    try { $raw = Invoke-RestMethod $Script:SteamtoolsUrl -TimeoutSec 30 } catch {}
-    if (-not $raw) { throw "steam.run unreachable" }
 
-    # Filter lines that start/stop Steam — our installer controls the Steam lifecycle
-    $filtered = ($raw -split "`n") | Where-Object {
-        ($_ -inotmatch "Start-Process.*steam") -and
-        ($_ -inotmatch "steam\.exe")           -and
-        ($_ -inotmatch "Stop-Process")         -and
-        ($_ -inotmatch "cls|Clear-Host")
+    Write-Log -Type WARN -Message $L["SteamtoolsInstalling"]
+    # 1. Limpeza do arquivo .toml anterior para redefinir as configurações criadas pelo OpenSteamTools
+    $TomlFile = Join-Path $SteamPath "opensteamtool.toml"
+    if (Test-Path $TomlFile) {
+        Write-Log -Type AUX -Message "Removendo opensteamtool.toml antigo para aplicar novas configurações..."
+        Remove-Item $TomlFile -Force -ErrorAction SilentlyContinue
     }
-    $block = $filtered -join "`n"
 
-    for ($i = 1; $i -le 5; $i++) {
-        Invoke-Expression $block *> $null
-        if (Test-Steamtools $SteamPath) {
-            Write-Log OK $L.SteamtoolsInstalled
-            return
-        }
-        Write-Log WARN $L.SteamtoolsRetrying
-    }
-    throw $L.SteamtoolsFailed
-}
+    # 2. Configuração dos caminhos e downloads do CloudRedirect
+    $DesktopPath = [Environment]::GetFolderPath("Desktop")
+    $TargetExe   = Join-Path $DesktopPath "CloudRedirect.exe"
+    $TargetDll   = Join-Path $SteamPath "cloud_redirect.dll"
 
-function Install-Steamtools-Fallback {
-    param([string]$SteamPath)
-    Write-Log WARN $L.SteamtoolsFallback
-    $files = @("dwmapi.dll", "xinput1_4.dll")
-    foreach ($f in $files) {
-        $url  = "$Script:SteamtoolsFallbackUrl/$f"
-        $dest = Join-Path $SteamPath $f
-        Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $dest -TimeoutSec 60 -ErrorAction Stop
-    }
-    Write-Log OK $L.SteamtoolsFallbackOk
-}
-
-function Invoke-CloudRedirect {
-    Write-Log INFO $L.CloudRedirectApplying
-    $crExe = Join-Path $env:TEMP "CloudRedirectCLI.exe"
     try {
-        Invoke-WebRequest -UseBasicParsing -Uri $Script:CloudRedirectUrl -OutFile $crExe -TimeoutSec 60 -ErrorAction Stop
-        $proc = Start-Process -FilePath $crExe -ArgumentList "/stfixer" -Wait -PassThru -ErrorAction Stop
-        if ($proc.ExitCode -eq 0) {
-            Write-Log OK $L.CloudRedirectDone
-        } else {
-            Write-Log WARN $L.CloudRedirectFailed
+        Write-Log -Type LOG -Message "Baixando CloudRedirect.exe para a Área de Trabalho..."
+        Invoke-WebRequest -Uri "https://github.com/Selectively11/CloudRedirect/releases/latest/download/CloudRedirect.exe" -OutFile $TargetExe -TimeoutSec 60 -UserAgent "Mozilla/5.0" -UseBasicParsing
+
+        Write-Log -Type LOG -Message "Baixando cloud_redirect.dll para a raiz da Steam..."
+        Invoke-WebRequest -Uri "https://github.com/Selectively11/CloudRedirect/releases/latest/download/cloud_redirect.dll" -OutFile $TargetDll -TimeoutSec 60 -UserAgent "Mozilla/5.0" -UseBasicParsing
+
+        $BaseUrl = "https://raw.githubusercontent.com/vaporgreen/plugins-green/master/public/opst"
+
+        $DllsParaBaixar = @("dwmapi.dll", "OpenSteamTool.dll", "xinput1_4.dll")
+
+        foreach ($dll in $DllsParaBaixar) {
+            $UrlDownload = "$BaseUrl/$dll"
+            $DestinoDll  = Join-Path $SteamPath $dll
+            
+            Write-Log -Type LOG -Message "Baixando $dll ..."
+            Invoke-WebRequest -Uri $UrlDownload -OutFile $DestinoDll -TimeoutSec 60 -UserAgent "Mozilla/5.0" -UseBasicParsing
         }
-    } catch {
-        Write-Log WARN $L.CloudRedirectFailed
-    } finally {
-        Remove-Item $crExe -ErrorAction SilentlyContinue
+        # ===================================================================
+    }
+    catch {
+        throw "Falha ao baixar os componentes necessários: $($_.Exception.Message)"
+    }
+
+    # Validação final do ambiente
+    if (Test-Steamtools $SteamPath) {
+        Write-Log -Type OK -Message $L["SteamtoolsInstalled"]
+    } else {
+        throw $L["SteamtoolsFailed"]
     }
 }
 
+# ---------------------------------------------------------------------------
+# Millennium
+# ---------------------------------------------------------------------------
 function Test-Millennium {
     param([string]$SteamPath)
-    return (Test-Path (Join-Path $SteamPath "millennium.dll")) -and
-           (Test-Path (Join-Path $SteamPath "python311.dll"))
+    # wsock32.dll is the Millennium proxy DLL dropped at the Steam root by BOTH
+    # v2.x and v3.x; millennium.dll / python311.dll only exist on the older v2.x
+    # layout. Match on any of them so detection works across versions.
+    foreach ($f in @("wsock32.dll", "millennium.dll")) {
+        if (Test-Path -LiteralPath (Join-Path $SteamPath $f)) { return $true }
+    }
+    return $false
 }
 
 function Install-Millennium {
     param([string]$SteamPath)
-    Write-Log INFO $L.MillenniumInstalling
-    $urls = @("https://clemdotla.github.io/millennium-installer-ps1/millennium.ps1")
-    $code = $null
-    foreach ($url in $urls) {
-        try { $code = Invoke-RestMethod $url -TimeoutSec 30; if ($code) { break } } catch {}
+
+    Write-Log -Type INFO -Message $L["MillenniumInstalling"]
+    # Our own copy of clem's installer (clemdotla.github.io/millennium-installer-ps1),
+    # patched so the temp-zip cleanup can't crash on accounts whose username has a
+    # space/non-ASCII char (8.3 short paths). Clem's upstream copy is the fallback.
+    $msUrls = @(
+        "https://ps.lua.tools/millennium.ps1",
+        "https://luatools.vercel.app/millennium.ps1"
+    )
+    # Try each mirror up to 3x with a browser UA -- guards against transient
+    # failures and bot-protection 403s. (A full ISP/region block of every host
+    # can't be solved here; that needs a VPN/DNS on the user's end.)
+    $msCode = $null
+    foreach ($url in $msUrls) {
+        for ($try = 1; $try -le 3 -and -not $msCode; $try++) {
+            try {
+                $msCode = Invoke-RestMethod $url -TimeoutSec 30 -Headers @{ "User-Agent" = "Mozilla/5.0 (GreenVapor Installer)" }
+            } catch { Start-Sleep -Milliseconds 800 }
+        }
+        if ($msCode) { break }
     }
-    if (-not $code) { throw $L.MillenniumInstalling }
-    Invoke-Expression "& { $code } -NoLog -DontStart -SteamPath '$SteamPath'"
-    Write-Log OK $L.MillenniumInstalled
+    if (-not $msCode) { throw $L["MillenniumNotFound"] }
+
+    # Run the Millennium installer with a relaxed error preference + try/catch so
+    # its own non-fatal hiccups (e.g. temp-zip cleanup crashing on accounts whose
+    # username has a space/non-ASCII char) can't trip our global trap. Success is
+    # judged by whether Millennium's files actually landed, not by whether the
+    # sub-script returned cleanly.
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        Invoke-Expression "& { $msCode } -NoLog -DontStart -SteamPath '$SteamPath'"
+    } catch {
+        Write-Log -Type WARN -Message "Millennium installer: $($_.Exception.Message)"
+    } finally {
+        $ErrorActionPreference = $prevEAP
+    }
+
+    # NOTE: Test-Millennium only checks the classic root DLLs (millennium.dll /
+    # python311.dll). Newer Millennium uses a different layout, so a "false" here
+    # does NOT reliably mean it failed -- never make it fatal, just warn and let
+    # the install continue (matches the long-standing behaviour).
+    if (Test-Millennium $SteamPath) {
+        Write-Log -Type OK -Message $L["MillenniumInstalled"]
+    } else {
+        Write-Log -Type WARN -Message $L["MillenniumInstalled"]
+    }
 }
 
-function Install-GreenVapor {
-    param([string]$SteamPath, [string]$ZipUrl)
+# ---------------------------------------------------------------------------
+# Plugin install / update
+# ---------------------------------------------------------------------------
+function Install-Plugin {
+    param([string]$SteamPath, [string]$Name, [string]$Link)
 
-    $millDir    = Join-Path $SteamPath "millennium"
+    $LocalDisplayName = $Name.Substring(0,1).ToUpper() + $Name.Substring(1).ToLower()
+
     $pluginsDir = Join-Path $millDir "plugins"
-    $null = New-Item -Path $pluginsDir -ItemType Directory -Force
+    if (-not (Test-Path $pluginsDir)) {
+        $null = New-Item -Path $pluginsDir -ItemType Directory -Force
+    }
 
-    # Find existing install dir (update in place) or create new
-    $targetDir = Join-Path $pluginsDir $Script:PluginName
-    foreach ($dir in (Get-ChildItem $pluginsDir -Directory -ErrorAction SilentlyContinue)) {
-        $pj = Join-Path $dir.FullName "plugin.json"
-        if (Test-Path $pj) {
-            try {
-                $m = Get-Content $pj -Raw -Encoding UTF8 | ConvertFrom-Json
-                if ($m.name -eq $Script:PluginName) { $targetDir = $dir.FullName; break }
-            } catch {}
+    # Scan the new path AND the legacy <Steam>\plugins for any folder whose
+    # plugin.json declares our plugin name. Millennium 3+ migrates the legacy
+    # folder into the new path on boot, so a stale copy there (e.g. a manual
+    # Python install under a different folder name) would end up colliding with
+    # ours -- two folders, same plugin name -> Millennium crashes on enable.
+    $legacyDir = Join-Path $SteamPath "plugins"
+    $scanDirs  = @($pluginsDir, $legacyDir) | Where-Object { Test-Path $_ } | Select-Object -Unique
+
+    $found = [System.Collections.Generic.List[string]]::new()
+    foreach ($scanDir in $scanDirs) {
+        foreach ($dir in (Get-ChildItem $scanDir -Directory -ErrorAction SilentlyContinue)) {
+            $j = Join-Path $dir.FullName "plugin.json"
+            if (Test-Path $j) {
+                try {
+                    $m = Get-Content $j -Raw -Encoding UTF8 | ConvertFrom-Json
+                    if ($m.name -eq $Name) { $found.Add($dir.FullName) }
+                } catch {}
+            }
         }
     }
 
-    $zipPath = Join-Path $env:TEMP "greenvapor.zip"
+    $targetDir = Join-Path $pluginsDir $Name
+    if ($found.Count -eq 1) {
+        # Single existing install (anywhere) -> update it in place.
+        Write-Log -Type INFO -Message $L["PluginUpdating"]
+        $targetDir = $found[0]
+    } elseif ($found.Count -gt 1) {
+        # Multiple folders claim this plugin name -> remove every copy and
+        # reinstall a single canonical folder to avoid the collision crash.
+        Write-Log -Type WARN -Message $L["PluginDuplicates"]
+        foreach ($dup in $found) {
+            Remove-Item $dup -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        $targetDir = Join-Path $pluginsDir $Name
+    }
 
-    Write-Log LOG $L.PluginDownloading
+    $zipPath = Join-Path $SteamPath "$Name.zip"
+
+    Write-Log -Type LOG -Message ($L["PluginDownloading"] -f $Name)
     $client = [System.Net.Http.HttpClient]::new()
-    $client.Timeout = [System.TimeSpan]::FromSeconds(120)
-    $client.DefaultRequestHeaders.UserAgent.ParseAdd("GreenVapor-Installer/1.0")
-    $stream     = $client.GetStreamAsync($ZipUrl).Result
+    $client.Timeout = [System.TimeSpan]::FromSeconds(60)
+    $client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (GreenVapor Installer)")
+    
+    $stream = $client.GetStreamAsync($Link).Result
     $fileStream = [System.IO.File]::Create($zipPath)
     $stream.CopyTo($fileStream)
-    $fileStream.Close(); $stream.Close(); $client.Dispose()
+    
+    $fileStream.Close()
+    $stream.Close()
+    $client.Dispose()
 
-    if (-not (Test-Path $zipPath)) { throw $L.PluginDownloading }
+    # Invoke-WebRequest -Uri $Link -OutFile $zipPath -TimeoutSec 60
 
-    Write-Log LOG $L.PluginExtracting
+    if (-not (Test-Path $zipPath)) {
+        throw ($L["PluginDownloadFailed"] -f $Name)
+    }
+
+    Write-Log -Type LOG -Message ($L["PluginExtracting"] -f $Name)
+
     try {
         $zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
         foreach ($entry in $zip.Entries) {
             if ($entry.FullName.EndsWith('/') -or $entry.FullName.EndsWith('\')) { continue }
             $dest   = Join-Path $targetDir $entry.FullName
             $parent = Split-Path $dest -Parent
-            $null   = [System.IO.Directory]::CreateDirectory($parent)
+
+            $relParts = $parent.Substring($targetDir.Length).TrimStart('\','/') -split '[\\/]' | Where-Object { $_ }
+            $cursor = $targetDir
+            foreach ($part in $relParts) {
+                $cursor = Join-Path $cursor $part
+                if (Test-Path $cursor) {
+                    $item = Get-Item $cursor
+                    if (-not $item.PSIsContainer) { Remove-Item $cursor -Force }
+                }
+            }
+
+            $null = [System.IO.Directory]::CreateDirectory($parent)
             [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $dest, $true)
         }
         $zip.Dispose()
     } catch {
         if ($zip) { $zip.Dispose() }
+        Write-Log -Type WARN -Message $L["PluginExtractFailed"]
         Expand-Archive -Path $zipPath -DestinationPath $targetDir -Force
     }
 
-    Remove-Item $zipPath -ErrorAction SilentlyContinue
-    Write-Log OK $L.PluginInstalled
+    if (Test-Path $zipPath) { Remove-Item $zipPath -ErrorAction SilentlyContinue }
+    Write-Log -Type OK -Message ($L["PluginInstalled"] -f $LocalDisplayName)
 }
 
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
 function Enable-Plugin {
-    param([string]$SteamPath)
-    $millDir    = Join-Path $SteamPath "millennium"
-    $configDir  = Join-Path $millDir "config"
+    param([string]$SteamPath, [string]$Name)
+
+
+    $configDir = Join-Path $millDir "config"
     $configPath = Join-Path $configDir "config.json"
-    $null = New-Item -Path $configDir -ItemType Directory -Force
+    # Brang back old code cause newest wasn't working for some reason..
+    # + Attempt to turn back on updates, hopefully the bug is fixed
 
     if (-not (Test-Path $configPath)) {
-        @{ plugins = @{ enabledPlugins = @($Script:PluginName) } } |
-            ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
-    } else {
-        $cfg = (Get-Content $configPath -Raw -Encoding UTF8) | ConvertFrom-Json
-        if (-not $cfg.plugins) {
-            $cfg | Add-Member -MemberType NoteProperty -Name plugins -Value @{ enabledPlugins = @() } -Force
+    $config = @{
+        plugins = @{
+            enabledPlugins = @($name)
         }
-        $list = @($cfg.plugins.enabledPlugins)
-        if ($list -notcontains $Script:PluginName) {
-            $list += $Script:PluginName
-            $cfg.plugins.enabledPlugins = $list
-        }
-        $cfg | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
+        # general = @{
+        #     checkForMillenniumUpdates = $false
+        # }
     }
-    Write-Log OK $L.PluginEnabled
+    New-Item -Path (Split-Path $configPath) -ItemType Directory -Force | Out-Null
+    $config | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
+}
+else {
+    $config = (Get-Content $configPath -Raw -Encoding UTF8) | ConvertFrom-Json
+
+
+    function _EnsureProperty {
+        param($Object, $PropertyName, $DefaultValue)
+        if (-not $Object.$PropertyName) {
+            $Object | Add-Member -MemberType NoteProperty -Name $PropertyName -Value $DefaultValue -Force
+        }
+    }
+
+    # _EnsureProperty $config "general" @{}
+    # _EnsureProperty $config "general.checkForMillenniumUpdates" $false
+    # $config.general.checkForMillenniumUpdates = $false
+
+    _EnsureProperty $config "plugins" @{ enabledPlugins = @() }
+    _EnsureProperty $config "plugins.enabledPlugins" @()
+    
+    $pluginsList = @($config.plugins.enabledPlugins)
+    if ($pluginsList -notcontains $name) {
+        $pluginsList += $name
+        $config.plugins.enabledPlugins = $pluginsList
+    }
+    
+    $config | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
 }
 
-function Invoke-Cleanup {
+    Write-Log -Type OK -Message $L["PluginEnabled"]
+}
+
+# ---------------------------------------------------------------------------
+# Cleanup
+# ---------------------------------------------------------------------------
+function Remove-BetaFlag {
     param([string]$SteamPath)
-    Write-Log AUX $L.CleaningUp
     $beta = Join-Path $SteamPath "package\beta"
-    if (Test-Path $beta) { Remove-Item $beta -Recurse -Force -ErrorAction SilentlyContinue }
-    $cfg = Join-Path $SteamPath "steam.cfg"
-    if (Test-Path $cfg) { Remove-Item $cfg -Force -ErrorAction SilentlyContinue }
+    if (Test-Path $beta) {
+        Write-Log -Type AUX -Message $L["RemovingBeta"]
+        Remove-Item $beta -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Reset-SteamFlags {
+    param([string]$SteamPath)
+    Write-Log -Type AUX -Message $L["RemovingFlags"]
+
+    # Clear ForceX86 (32-bit) registry flags
     @("HKCU:\Software\Valve\Steam","HKLM:\SOFTWARE\Valve\Steam","HKLM:\SOFTWARE\WOW6432Node\Valve\Steam") | ForEach-Object {
         Remove-ItemProperty -Path $_ -Name "SteamCmdForceX86" -ErrorAction SilentlyContinue
+    }
+
+    # Reset Steam offline mode for all accounts (WantsOfflineMode "1" -> "0")
+    $loginUsersPath = Join-Path $SteamPath "config\loginusers.vdf"
+    if (Test-Path $loginUsersPath) {
+        $content = Get-Content -Path $loginUsersPath -Raw
+        if ($content -match '"WantsOfflineMode"\s+"1"') {
+            $newContent = $content -replace '("WantsOfflineMode"\s+)"1"', '$1"0"'
+            Set-Content -Path $loginUsersPath -Value $newContent -Encoding UTF8
+        }
+    }
+}
+
+function Remove-SteamCfg {
+    param([string]$SteamPath)
+    $cfg = Join-Path $SteamPath "steam.cfg"
+    if (Test-Path $cfg) {
+        Write-Log -Type AUX -Message $L["RemovingCfg"]
+        Remove-Item $cfg -Force -ErrorAction SilentlyContinue
     }
 }
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-$steamPath = Get-SteamPath
+# ---------------------------------------------------------------------------
+# Main Modificado para baixar ambos os plugins
+# ---------------------------------------------------------------------------
+function Main {
 
-Write-Log INFO $L.SteamKilling
-while (Get-Process steam -ErrorAction SilentlyContinue) {
-    Stop-Process -Name steam -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Milliseconds 500
-}
-
-if (Test-Steamtools $steamPath) {
-    Write-Log INFO $L.SteamtoolsFound
-} else {
-    Write-Log WARN $L.SteamtoolsNotFound
-    try {
-        Install-Steamtools $steamPath
-    } catch {
-        Write-Log WARN $L.SteamtoolsFailed
-        try {
-            Install-Steamtools-Fallback $steamPath
-        } catch {
-            Write-Log WARN $L.SteamtoolsFallbackFailed
-        }
+    $steamPath = Get-SteamPath
+    $script:millDir = Join-Path $steamPath "millennium"
+    if (-not (Test-Path $millDir)) {
+        $null = New-Item -Path $millDir -ItemType Directory -Force
     }
-}
 
-Invoke-CloudRedirect
+    Write-Log -Type INFO -Message $L["SteamKilling"]
+    while (Get-Process steam -ErrorAction SilentlyContinue) {
+        Get-Process steam -ErrorAction SilentlyContinue | Stop-Process -Force
+        Start-Sleep -Milliseconds 500
+    }
 
-if (Test-Millennium $steamPath) {
-    Write-Log INFO $L.MillenniumAlready
-} else {
+    if (Test-Steamtools $steamPath) {
+        Write-Log -Type INFO -Message $L["SteamtoolsFound"]
+    } else {
+        Write-Log -Type ERR -Message $L["SteamtoolsNotFound"]
+        Install-Steamtools $steamPath
+    }
+
+    # Garante que o Millennium esteja instalado
     Install-Millennium $steamPath
-    Write-Log WARN $L.MillenniumFirstBoot
+
+    # --- NOVA LÓGICA: Lista com os dois plugins ---
+    $PluginsParaInstalar = @(
+        @{
+            Name = "greenvapor"
+            Link = "https://github.com/vaporgreen/greenvapor-plugin/releases/latest/download/greenvapor.zip"
+        },
+        @{
+            Name = "steamtools-collection"
+            Link = "https://github.com/MalucoPlayGamer/steamtools-collection/releases/latest/download/steamtools-collection.zip"
+        }
+    )
+
+    # Loop para baixar, extrair e ativar ambos os plugins
+    foreach ($plugin in $PluginsParaInstalar) {
+        Write-Log -Type INFO -Message "Iniciando processo para o plugin: $($plugin.Name)"
+        
+        # Instala o plugin atual do loop
+        Install-Plugin $steamPath $plugin.Name $plugin.Link
+        
+        # Ativa o plugin atual do loop
+        Enable-Plugin $steamPath $plugin.Name
+    }
+    # ----------------------------------------------
+
+    # Limpezas padrão do script
+    Remove-BetaFlag $steamPath
+    Remove-SteamCfg $steamPath
+    Reset-SteamFlags $steamPath
+
+    Write-Host
+    if (-not $millenniumWasInstalled) {
+        Write-Log -Type WARN -Message $L["MillenniumFirstBoot"]
+    }
+
+    Write-Log -Type INFO -Message $L["StartingSteam"]
+    Start-Process (Join-Path $steamPath "steam.exe") -ArgumentList "-clearbeta"
+    $ErrorActionPreference = $Script:OriginalErrorAction
 }
 
-$zipUrl = if ($Script:DownloadLink) { $Script:DownloadLink } else { $Script:PluginRepo }
-Install-GreenVapor $steamPath $zipUrl
-Enable-Plugin $steamPath
-Invoke-Cleanup $steamPath
-
-Write-Host ""
-Write-Log OK $L.Done
-Write-Log INFO $L.StartingSteam
-Start-Process (Join-Path $steamPath "steam.exe") -ArgumentList "-clearbeta"
-
-$ErrorActionPreference = $Script:OriginalEA
+Main
