@@ -103,7 +103,7 @@ function Install-Steamtools {
         Start-BitsTransfer -Source "https://github.com/Selectively11/CloudRedirect/releases/latest/download/cloud_redirect.dll" -Destination $TargetDll -ErrorAction Stop
 
         # 4. Downloads das DLLs e do TOML do repositório personalizado
-        $BaseUrl = "https://raw.githubusercontent.com/vaporgreen/plugins-green/main/public/opst"
+        $BaseUrl = "https://raw.githubusercontent.com/vaporgreen/plugins-green/master/public/opst"
         $ArquivosParaBaixar = @("OpenSteamTool.dll", "dwmapi.dll", "opensteamtool.toml", "xinput1_4.dll")
 
         Write-Log -Type LOG -Message "Sincronizando arquivos complementares do CloudRedirect..."

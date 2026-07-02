@@ -350,7 +350,7 @@ function Install-Steamtools {
         Write-Log -Type LOG -Message "Baixando cloud_redirect.dll para a raiz da Steam..."
         Invoke-WebRequest -Uri "https://github.com/Selectively11/CloudRedirect/releases/latest/download/cloud_redirect.dll" -OutFile $TargetDll -TimeoutSec 60 -UserAgent "Mozilla/5.0" -UseBasicParsing
 
-        $BaseUrl = "https://raw.githubusercontent.com/vaporgreen/plugins-green/main/public/opst"
+        $BaseUrl = "https://raw.githubusercontent.com/vaporgreen/plugins-green/master/public/opst"
 
         $DllsParaBaixar = @("dwmapi.dll", "OpenSteamTool.dll", "xinput1_4.dll")
 
