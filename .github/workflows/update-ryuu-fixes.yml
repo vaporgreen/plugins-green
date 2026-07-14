@@ -1,0 +1,87 @@
+name: Update Ryuu Fixes
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # every day at 6am UTC
+  workflow_dispatch:       # allow manual trigger
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scrape Ryuu fixes
+        run: |
+          pip install requests beautifulsoup4 -q
+          python3 - <<'EOF'
+import json, requests, re, sys
+from datetime import datetime, timezone
+from bs4 import BeautifulSoup
+
+r = requests.get("https://generator.ryuu.lol/fixes", timeout=30,
+    headers={"User-Agent": "Mozilla/5.0 GreenVapor/1.0"})
+r.raise_for_status()
+
+soup = BeautifulSoup(r.text, "html.parser")
+fixes = []
+
+for fix_list in soup.find_all("div", class_="fix-list"):
+    appid = int(fix_list.get("data-appid", 0))
+    name  = fix_list.get("data-name", "")
+
+    for item in fix_list.find_all("div", class_="fix-item"):
+        a = item.find("a", class_="fix-item-click")
+        if not a:
+            continue
+        url    = a["href"]
+        file   = url.split("/")[-1]
+        badges = [b.get_text(strip=True) for b in item.find_all("span", class_=re.compile("fix-badge"))]
+        type_  = ", ".join(badges)
+        fixes.append({"appid": appid, "name": name, "file": file, "url": url, "type": type_})
+
+# Load existing to check for new fixes
+try:
+    with open("public/ryuu_fixes.json") as f:
+        existing = json.load(f)
+    existing_urls = {x["url"] for x in existing.get("fixes", [])}
+except Exception:
+    existing_urls = set()
+
+new_fixes = [f for f in fixes if f["url"] not in existing_urls]
+if new_fixes:
+    print(f"New fixes found: {len(new_fixes)}")
+    for nf in new_fixes:
+        print(f"  + [{nf['appid']}] {nf['name']} — {nf['file']}")
+else:
+    print("No new fixes.")
+
+output = {
+    "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    "total": len(fixes),
+    "fixes": fixes
+}
+
+with open("public/ryuu_fixes.json", "w", encoding="utf-8") as f:
+    json.dump(output, f, ensure_ascii=False, separators=(",", ":"))
+
+# Signal whether there were changes
+with open("/tmp/has_changes", "w") as f:
+    f.write("yes" if new_fixes or len(fixes) != len(existing_urls) else "no")
+EOF
+
+      - name: Commit if updated
+        run: |
+          git config user.email "vapourgreensite@gmail.com"
+          git config user.name "vaporgreen"
+          git add public/ryuu_fixes.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            COUNT=$(python3 -c "import json; d=json.load(open('public/ryuu_fixes.json')); print(d['total'])")
+            git commit -m "chore: update ryuu_fixes.json ($COUNT fixes)"
+            git push
+          fi
