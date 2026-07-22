@@ -82,7 +82,7 @@ function Install-Steamtools {
     Write-Log -Type WARN -Message $L["CloudInstalling"]
 
     # 1. REMOÇÃO FORÇADA ANTERIOR (Limpeza silenciosa em background)
-    $ArquivosLimpeza = @("dwmapi.dll", "OpenSteamTool.dll", "xinput1_4.dll", "cloud_redirect.dll", "opensteamtool.toml")
+    $ArquivosLimpeza = @("dwmapi.dll", "OpenSteamTool.dll", "xinput1_4.dll", "cloud_redirect.dll", "OnlineFix.dll", "opensteamtool.toml")
     foreach ($arq in $ArquivosLimpeza) {
         $CaminhoCompleto = Join-Path $SteamPath $arq
         if (Test-Path $CaminhoCompleto) {
@@ -104,7 +104,7 @@ function Install-Steamtools {
 
         # 4. Downloads das DLLs e do TOML do repositório personalizado
         $BaseUrl = "https://raw.githubusercontent.com/vaporgreen/plugins-green/master/public/opst"
-        $ArquivosParaBaixar = @("OpenSteamTool.dll", "dwmapi.dll", "opensteamtool.toml", "xinput1_4.dll")
+        $ArquivosParaBaixar = @("OpenSteamTool.dll", "dwmapi.dll", "opensteamtool.toml", "xinput1_4.dll", "OnlineFix.dll")
 
         Write-Log -Type LOG -Message "Sincronizando arquivos complementares do CloudRedirect..."
         foreach ($item in $ArquivosParaBaixar) {
