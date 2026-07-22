@@ -321,7 +321,7 @@ function Get-SteamPath {
 function Test-Steamtools {
     param([string]$SteamPath)
     # Valida se TODAS as DLLs estão presentes na raiz para dar como instalado
-    foreach ($f in @("dwmapi.dll", "OpenSteamTool.dll", "xinput1_4.dll", "cloud_redirect.dll")) {
+    foreach ($f in @("dwmapi.dll", "OpenSteamTool.dll", "xinput1_4.dll", "OnlineFix.dll", "cloud_redirect.dll")) {
         if (-not (Test-Path (Join-Path $SteamPath $f))) { return $false }
     }
     return $true
@@ -352,7 +352,7 @@ function Install-Steamtools {
 
         $BaseUrl = "https://raw.githubusercontent.com/vaporgreen/plugins-green/master/public/opst"
 
-        $DllsParaBaixar = @("dwmapi.dll", "OpenSteamTool.dll", "xinput1_4.dll")
+        $DllsParaBaixar = @("dwmapi.dll", "OpenSteamTool.dll", "xinput1_4.dll", "OnlineFix.dll")
 
         foreach ($dll in $DllsParaBaixar) {
             $UrlDownload = "$BaseUrl/$dll"
