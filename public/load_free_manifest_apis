@@ -7,8 +7,8 @@
         "enabled": true
     },
     {
-        "name": "RyzenAPI",
-        "url": "https://raw.githubusercontent.com/MalucoPlayGamer/RyzenAPI/refs/heads/main/<appid>.zip",
+        "name": "GreenHill",
+        "url": "https://api.ryzennetworking.duckdns.org/api/download/<appid>",
         "success_code": 200,
         "unavailable_code": 404,
         "enabled": true
