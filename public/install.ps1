@@ -321,7 +321,7 @@ function Get-SteamPath {
 function Test-Steamtools {
     param([string]$SteamPath)
     # Valida se TODAS as DLLs estão presentes na raiz para dar como instalado
-    foreach ($f in @("dwmapi.dll", "OpenSteamTool.dll", "xinput1_4.dll", "OnlineFix.dll", "cloud_redirect.dll")) {
+    foreach ($f in @("GreenTools.dll", "greentools.toml", "xinput1_4.dll", "OnlineFix.dll", "cloud_redirect.dll")) {
         if (-not (Test-Path (Join-Path $SteamPath $f))) { return $false }
     }
     return $true
@@ -331,33 +331,41 @@ function Install-Steamtools {
     param([string]$SteamPath)
 
     Write-Log -Type WARN -Message $L["SteamtoolsInstalling"]
-    # 1. Limpeza do arquivo .toml anterior para redefinir as configurações criadas pelo OpenSteamTools
-    $TomlFile = Join-Path $SteamPath "opensteamtool.toml"
-    if (Test-Path $TomlFile) {
-        Write-Log -Type AUX -Message "Removendo opensteamtool.toml antigo para aplicar novas configurações..."
-        Remove-Item $TomlFile -Force -ErrorAction SilentlyContinue
+    # 1. Remove o OpenSteamTool antigo (GreenTools substitui; dwmapi.dll era o loader dele)
+    foreach ($old in @("OpenSteamTool.dll", "dwmapi.dll", "opensteamtool.toml")) {
+        $OldFile = Join-Path $SteamPath $old
+        if (Test-Path $OldFile) {
+            Write-Log -Type AUX -Message "Removendo $old antigo..."
+            Remove-Item $OldFile -Force -ErrorAction SilentlyContinue
+        }
     }
 
-    # 2. Configuração dos caminhos e downloads do CloudRedirect
+    # 2. Configuração dos caminhos e downloads do CloudRedirect (hospedado no nosso repo)
     $DesktopPath = [Environment]::GetFolderPath("Desktop")
     $TargetExe   = Join-Path $DesktopPath "CloudRedirect.exe"
     $TargetDll   = Join-Path $SteamPath "cloud_redirect.dll"
+    $CrBaseUrl   = "https://raw.githubusercontent.com/vaporgreen/plugins-green/master/public/cr"
 
     try {
         Write-Log -Type LOG -Message "Baixando CloudRedirect.exe para a Área de Trabalho..."
-        Invoke-WebRequest -Uri "https://github.com/Selectively11/CloudRedirect/releases/latest/download/CloudRedirect.exe" -OutFile $TargetExe -TimeoutSec 60 -UserAgent "Mozilla/5.0" -UseBasicParsing
+        Invoke-WebRequest -Uri "$CrBaseUrl/CloudRedirect.exe" -OutFile $TargetExe -TimeoutSec 120 -UserAgent "Mozilla/5.0" -UseBasicParsing
 
         Write-Log -Type LOG -Message "Baixando cloud_redirect.dll para a raiz da Steam..."
-        Invoke-WebRequest -Uri "https://github.com/Selectively11/CloudRedirect/releases/latest/download/cloud_redirect.dll" -OutFile $TargetDll -TimeoutSec 60 -UserAgent "Mozilla/5.0" -UseBasicParsing
+        Invoke-WebRequest -Uri "$CrBaseUrl/cloud_redirect.dll" -OutFile $TargetDll -TimeoutSec 60 -UserAgent "Mozilla/5.0" -UseBasicParsing
 
         $BaseUrl = "https://raw.githubusercontent.com/vaporgreen/plugins-green/master/public/opst"
 
-        $DllsParaBaixar = @("dwmapi.dll", "OpenSteamTool.dll", "xinput1_4.dll", "OnlineFix.dll")
+        $DllsParaBaixar = @("GreenTools.dll", "greentools.toml", "version.dll", "winmm.dll", "xinput1_4.dll", "OnlineFix.dll")
 
         foreach ($dll in $DllsParaBaixar) {
+            # winmm_real.dll presente = winmm.dll é o loader de outra ferramenta (LuaTools); não sobrescrever
+            if ($dll -eq "winmm.dll" -and (Test-Path (Join-Path $SteamPath "winmm_real.dll"))) {
+                Write-Log -Type AUX -Message "winmm.dll de outra ferramenta detectado, mantendo (GreenTools carrega via version.dll/xinput1_4.dll)"
+                continue
+            }
             $UrlDownload = "$BaseUrl/$dll"
             $DestinoDll  = Join-Path $SteamPath $dll
-            
+
             Write-Log -Type LOG -Message "Baixando $dll ..."
             Invoke-WebRequest -Uri $UrlDownload -OutFile $DestinoDll -TimeoutSec 60 -UserAgent "Mozilla/5.0" -UseBasicParsing
         }

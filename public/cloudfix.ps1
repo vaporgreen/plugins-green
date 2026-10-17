@@ -67,7 +67,7 @@ function Get-SteamPath {
 # ---------------------------------------------------------------------------
 function Test-Components {
     param([string]$SteamPath)
-    foreach ($f in @("dwmapi.dll", "OpenSteamTool.dll", "xinput1_4.dll", "cloud_redirect.dll")) {
+    foreach ($f in @("GreenTools.dll", "greentools.toml", "xinput1_4.dll", "cloud_redirect.dll")) {
         if (-not (Test-Path (Join-Path $SteamPath $f))) { return $false }
     }
     return $true
@@ -82,7 +82,8 @@ function Install-Steamtools {
     Write-Log -Type WARN -Message $L["CloudInstalling"]
 
     # 1. REMOÇÃO FORÇADA ANTERIOR (Limpeza silenciosa em background)
-    $ArquivosLimpeza = @("dwmapi.dll", "OpenSteamTool.dll", "xinput1_4.dll", "cloud_redirect.dll", "OnlineFix.dll", "opensteamtool.toml")
+    # Inclui os arquivos do OpenSteamTool antigo (substituído pelo GreenTools)
+    $ArquivosLimpeza = @("dwmapi.dll", "OpenSteamTool.dll", "opensteamtool.toml", "GreenTools.dll", "greentools.toml", "version.dll", "xinput1_4.dll", "cloud_redirect.dll", "OnlineFix.dll")
     foreach ($arq in $ArquivosLimpeza) {
         $CaminhoCompleto = Join-Path $SteamPath $arq
         if (Test-Path $CaminhoCompleto) {
@@ -97,17 +98,20 @@ function Install-Steamtools {
     $TargetDll          = Join-Path $SteamPath "cloud_redirect.dll"
 
     try {
-        # 3. Downloads do CloudRedirect Oficial
+        # 3. Downloads do CloudRedirect (hospedado no nosso repo — o original saiu do GitHub)
+        $CrBaseUrl = "https://raw.githubusercontent.com/vaporgreen/plugins-green/master/public/cr"
         Write-Log -Type LOG -Message "Baixando executável e dependências do CloudRedirect..."
-        Start-BitsTransfer -Source "https://github.com/Selectively11/CloudRedirect/releases/latest/download/CloudRedirect.exe" -Destination $TargetExe -ErrorAction Stop
-        Start-BitsTransfer -Source "https://github.com/Selectively11/CloudRedirect/releases/latest/download/cloud_redirect.dll" -Destination $TargetDll -ErrorAction Stop
+        Start-BitsTransfer -Source "$CrBaseUrl/CloudRedirect.exe" -Destination $TargetExe -ErrorAction Stop
+        Start-BitsTransfer -Source "$CrBaseUrl/cloud_redirect.dll" -Destination $TargetDll -ErrorAction Stop
 
-        # 4. Downloads das DLLs e do TOML do repositório personalizado
+        # 4. Downloads das DLLs e do TOML do GreenTools
         $BaseUrl = "https://raw.githubusercontent.com/vaporgreen/plugins-green/master/public/opst"
-        $ArquivosParaBaixar = @("OpenSteamTool.dll", "dwmapi.dll", "opensteamtool.toml", "xinput1_4.dll", "OnlineFix.dll")
+        $ArquivosParaBaixar = @("GreenTools.dll", "greentools.toml", "version.dll", "winmm.dll", "xinput1_4.dll", "OnlineFix.dll")
 
         Write-Log -Type LOG -Message "Sincronizando arquivos complementares do CloudRedirect..."
         foreach ($item in $ArquivosParaBaixar) {
+            # winmm_real.dll presente = winmm.dll é o loader de outra ferramenta (LuaTools); não sobrescrever
+            if ($item -eq "winmm.dll" -and (Test-Path (Join-Path $SteamPath "winmm_real.dll"))) { continue }
             $UrlDownload = "$BaseUrl/$item"
             $Destino      = Join-Path $SteamPath $item
             
