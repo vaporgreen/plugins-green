@@ -1,6 +1,9 @@
 [log]
 level = "info"
 
+[update]
+enabled = false
+
 [manifest]
 url = "manifestdex"
 timeout_resolve_ms = 5000
@@ -20,3 +23,7 @@ enabled = true
 [inject]
 path = "OnlineFix.dll"
 when_cmdline = "-onlinefix"
+
+[cef]
+enable_debugging = true
+devtools_port = 27183
