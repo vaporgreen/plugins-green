@@ -1,9 +1,6 @@
 [log]
 level = "info"
 
-[update]
-enabled = false
-
 [manifest]
 url = "manifestdex"
 timeout_resolve_ms = 5000
