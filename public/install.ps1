@@ -355,12 +355,12 @@ function Install-Steamtools {
 
         $BaseUrl = "https://raw.githubusercontent.com/vaporgreen/plugins-green/master/public/opst"
 
-        $DllsParaBaixar = @("GreenTools.dll", "greentools.toml", "version.dll", "winmm.dll", "xinput1_4.dll", "OnlineFix.dll")
+        $DllsParaBaixar = @("GreenTools.dll", "greentools.toml", "wsock32.dll", "winmm.dll", "xinput1_4.dll", "OnlineFix.dll")
 
         foreach ($dll in $DllsParaBaixar) {
             # winmm_real.dll presente = winmm.dll é o loader de outra ferramenta (LuaTools); não sobrescrever
             if ($dll -eq "winmm.dll" -and (Test-Path (Join-Path $SteamPath "winmm_real.dll"))) {
-                Write-Log -Type AUX -Message "winmm.dll de outra ferramenta detectado, mantendo (GreenTools carrega via version.dll/xinput1_4.dll)"
+                Write-Log -Type AUX -Message "winmm.dll de outra ferramenta detectado, mantendo (GreenTools carrega via wsock32.dll/xinput1_4.dll)"
                 continue
             }
             $UrlDownload = "$BaseUrl/$dll"
