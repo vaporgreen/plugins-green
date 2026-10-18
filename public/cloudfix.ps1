@@ -83,7 +83,7 @@ function Install-Steamtools {
 
     # 1. REMOÇÃO FORÇADA ANTERIOR (Limpeza silenciosa em background)
     # Inclui os arquivos do OpenSteamTool antigo (substituído pelo GreenTools)
-    $ArquivosLimpeza = @("dwmapi.dll", "OpenSteamTool.dll", "opensteamtool.toml", "GreenTools.dll", "greentools.toml", "version.dll", "xinput1_4.dll", "cloud_redirect.dll", "OnlineFix.dll")
+    $ArquivosLimpeza = @("dwmapi.dll", "OpenSteamTool.dll", "opensteamtool.toml", "GreenTools.dll", "greentools.toml", "wsock32.dll", "xinput1_4.dll", "cloud_redirect.dll", "OnlineFix.dll")
     foreach ($arq in $ArquivosLimpeza) {
         $CaminhoCompleto = Join-Path $SteamPath $arq
         if (Test-Path $CaminhoCompleto) {
@@ -106,7 +106,7 @@ function Install-Steamtools {
 
         # 4. Downloads das DLLs e do TOML do GreenTools
         $BaseUrl = "https://raw.githubusercontent.com/vaporgreen/plugins-green/master/public/opst"
-        $ArquivosParaBaixar = @("GreenTools.dll", "greentools.toml", "version.dll", "winmm.dll", "xinput1_4.dll", "OnlineFix.dll")
+        $ArquivosParaBaixar = @("GreenTools.dll", "greentools.toml", "wsock32.dll", "winmm.dll", "xinput1_4.dll", "OnlineFix.dll")
 
         Write-Log -Type LOG -Message "Sincronizando arquivos complementares do CloudRedirect..."
         foreach ($item in $ArquivosParaBaixar) {
